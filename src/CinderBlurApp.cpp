@@ -1,9 +1,7 @@
 #include "cinder/Camera.h"
-#include "cinder/ImageIo.h"
-#include "cinder/TriMesh.h"
 #include "cinder/gl/Fbo.h"
 #include "cinder/gl/GlslProg.h"
-#include "cinder/gl/Texture.h"
+#include "cinder/params/Params.h"
 #include "cinder/app/AppNative.h"
 #include "cinder/gl/gl.h"
 
@@ -27,15 +25,19 @@ class CinderBlurApp : public AppNative {
     
     void drawStrokedRect( const Rectf &rect );
 
-    ci::Font		mFont;
     
-    gl::Fbo			mFboScene;
-    gl::Fbo			mFboBlur1;
-    gl::Fbo			mFboBlur2;
+    gl::Fbo                 mFboScene;
+    gl::Fbo                 mFboBlur1;
+    gl::Fbo                 mFboBlur2;
     
-    gl::GlslProg	mShaderBlur;
+    gl::GlslProg            mShaderBlur;
     
-    CameraPersp		mCamera;
+    CameraPersp             mCamera;
+
+	ColorA                  mColor;
+	params::InterfaceGlRef	mParams;
+    
+    float                   mAttenuation;
 };
 
 void CinderBlurApp::prepareSettings(cinder::app::AppBasic::Settings *settings)
@@ -46,7 +48,13 @@ void CinderBlurApp::prepareSettings(cinder::app::AppBasic::Settings *settings)
 
 void CinderBlurApp::setup()
 {
-    mFont = Font("Arial", 24.0f);
+    mColor = ColorA(1.0f, 0.0f, 0.0f, 0.0f);
+    mAttenuation = 2.0f;
+    
+	mParams = params::InterfaceGl::create( getWindow(), "App parameters", toPixels( Vec2i( 200, 200 ) ) );
+    
+    mParams->addParam( "Attenuation ", &mAttenuation).min(0.0f).max(10.0f).step(0.001);
+    mParams->addParam( "Color ", &mColor);
     
     gl::Fbo::Format fmt;
     fmt.setSamples(8);
@@ -110,7 +118,7 @@ void CinderBlurApp::draw()
     
     // tell the shader to blur horizontally and the size of 1 pixel
     mShaderBlur.uniform("sample_offset", Vec2f(1.0f/mFboBlur1.getWidth(), 0.0f));
-    mShaderBlur.uniform("attenuation", 2.5f);
+    mShaderBlur.uniform("attenuation", mAttenuation);
     
     // copy a horizontally blurred version of our scene into the first blur Fbo
     gl::setViewport( mFboBlur1.getBounds() );
@@ -126,7 +134,7 @@ void CinderBlurApp::draw()
     
     // tell the shader to blur vertically and the size of 1 pixel
     mShaderBlur.uniform("sample_offset", Vec2f(0.0f, 1.0f/mFboBlur2.getHeight()));
-    mShaderBlur.uniform("attenuation", 2.5f);
+    mShaderBlur.uniform("attenuation", mAttenuation);
     
     // copy a vertically blurred version of our blurred scene into the second blur Fbo
     gl::setViewport( mFboBlur2.getBounds() );
@@ -175,6 +183,8 @@ void CinderBlurApp::draw()
     gl::draw( mFboBlur2.getTexture(), Rectf(1206, 0, 1206 + 400, 400) );
     gl::disableAlphaBlending();
     drawStrokedRect( Rectf(1206, 0, 1206 + 400, 400) );
+    
+    mParams->draw();
 }
 
 void CinderBlurApp::keyDown(cinder::app::KeyEvent event)
@@ -193,8 +203,13 @@ void CinderBlurApp::render()
     // render our scene (see the Picking3D sample for more info)
     gl::pushMatrices();
     
-    gl::color( Color::white() );
+    gl::color( mColor );
     gl::drawSolidCircle(Vec2f(200.0f, 200.0f), 50.0f);
+    
+    glLineWidth(20);
+    gl::drawLine(Vec2f(0,0), Vec2f(200.0f, 200.0f));
+    glLineWidth(10);
+    gl::drawLine(Vec2f(200.0f, 200.0f), Vec2f(400.0f,0));
     
     gl::popMatrices();
 }
